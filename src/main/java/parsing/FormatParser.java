@@ -27,9 +27,10 @@ public class FormatParser {
             String mime = elements.get(index).text();
 
             if (mime.equals(TextData.EPUB_MIME_TYPE) || mime.equals(TextData.FB2_MIME_TYPE) ||
-                    mime.equals(TextData.MOBI_MIME_TYPE) || mime.equals(TextData.PDF_MIME_TYPE) ||
-                    mime.equals(TextData.READ_ONLINE)) {
-                mimeList.add(mime);
+                    mime.equals(TextData.MOBI_MIME_TYPE) || mime.equals(TextData.PDF_MIME_TYPE)) {
+                mimeList.add(mime.replace("(", "")
+                        .replace(")", "")
+                        .replace("скачать", ""));
             }
         } return mimeList;
     }

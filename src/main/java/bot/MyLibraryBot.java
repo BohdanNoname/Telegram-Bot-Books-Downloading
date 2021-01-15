@@ -3,6 +3,7 @@ package bot;
 import org.telegram.telegrambots.ApiContextInitializer;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -14,8 +15,11 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import parsing.BookListParser;
 import parsing.FormatParser;
 import pojo.Book;
-import pojo.BookOptions;
+import pojo.Library;
 
+import java.io.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,8 +28,13 @@ public class MyLibraryBot extends TelegramLongPollingBot {
 
     private Message message;
     private static SendMessage messageSettings;
-    private boolean isGotPositionOfBook = false;
-    private List<BookOptions> bookOptionsList;
+
+    private List<Library> library;
+    private Book book;
+
+    private int levelOfProgram = 0;
+
+    /*___________________________________________________________________________*/
 
     public static void main(String[] args) {
         ApiContextInitializer.init();
@@ -36,7 +45,7 @@ public class MyLibraryBot extends TelegramLongPollingBot {
             e.printStackTrace(); }
 
         messageSettings = new SendMessage();
-        setButtonsRow(addingOfNewRowToKeyboard(TextData.CANCEL_OF_SEARCHING_PROMPT));
+        setButtonsRow(addingRowToKeyboard());
     }
 
     public String getBotUsername() {
@@ -51,83 +60,122 @@ public class MyLibraryBot extends TelegramLongPollingBot {
 
     public void onUpdateReceived(Update update) {
         message = update.getMessage();
+        String trigger = message.getText();
 
-        switch (message.getText()){
+        switch (trigger){
             case TextData.MAIN_START:
-                sendMessage(TextData.WELCOMING_OF_NEW_USER_PROMPT + '\n' + '\n'
-                        + TextData.STARTING_OF_NEW_SEARCHING_PROMPT); /*Сообщение при первом входе в бот*/
+                sendMessage(TextData.WELCOMING_OF_NEW_USER_PROMPT);
                 break;
-
             case TextData.CANCEL_OF_SEARCHING_PROMPT:
-                isGotPositionOfBook = false;
-                setButtonsRow(addingOfNewRowToKeyboard(TextData.CANCEL_OF_SEARCHING_PROMPT));
-
+                setButtonsRow(addingRowToKeyboard());
                 sendMessage(TextData.CANCEL_TRUE_PROMPT + '\n'
-                        + TextData.STARTING_OF_NEW_SEARCHING_PROMPT); /*Сообщение при отмене текущего поиска и начало нового*/
+                        + TextData.STARTING_OF_NEW_SEARCHING_PROMPT);
+                levelOfProgram = 0;
                 break;
-//_________________________________
             default:
-                if (!isGotPositionOfBook){
-                    BookListParser bookListParser = new BookListParser(message.getText());
-                    bookOptionsList = bookListParser.getAllOptionsOfBooks();
-                    if (bookOptionsList == null){
-                        sendMessage(TextData.ERROR_EMPTY_PROMPT);
-                    } else {
-                        sendMessage(bookOptionsList.toString()
-                                .replace("[", "").replace("]", ""));
-
-                        sendMessage(TextData.NUMBER_PROMPT);
-                        isGotPositionOfBook = true;
-                    }
-                }
-//_________________________________
-                else if (isGotPositionOfBook && (bookOptionsList != null || bookOptionsList.size() != 0)){
-                    getMainDataBook(bookOptionsList, (Integer.parseInt(message.getText()) - 1)).toString();
-                } else {
-                    sendMessage(TextData.ERROR_EMPTY_PROMPT);
-                }
+                getListOfBooks(trigger);
+                settingPositionOfBookByUser(trigger);
+                sendingBookToUser(trigger);
+                break;
         }
     }
-    /*___________________________________________________________________________*/
 
-    private boolean sendMessage(String mainMessageForUser){
+    /*______________________________Algorithm of program_____________________________________________*/
+
+    private void getListOfBooks(String query){
+        if (levelOfProgram == 0) {
+            BookListParser bookListParser = new BookListParser();
+            library = bookListParser.getAllBooksByQuery(query);
+            if (library.size() != 0) {
+                sendMessage(library.toString()
+                        .replace("[", "").replace("]", ""));
+                levelOfProgram = 1;
+            } else {
+                sendMessage(TextData.ERROR_EMPTY_PROMPT);
+            }
+        }
+    }
+
+    private void settingPositionOfBookByUser(String position){
+        if (library.size() != 0 && isNumeric(position) && levelOfProgram == 1){
+            book = setBookData(library, (Integer.parseInt(position) - 1));
+            messageSettings.setReplyMarkup(setButtonsRow(addingRowToKeyboard(book.getFileFormat())));
+            sendMessage(TextData.FORMAT_CHOSE_PROMPT);
+            levelOfProgram = 2;
+        } else if (library.size() != 0 && levelOfProgram == 1){
+            sendMessage(TextData.NUMBER_PROMPT);
+        } else {
+            sendMessage(TextData.ERROR_INPUTTING_POSITION_PROMPT);
+        }
+    }
+
+    private void sendingBookToUser(String trigger){
+        String mime;
+        if (levelOfProgram == 2 && (mime = catchMimeTypeFromUser(trigger, book.getFileFormat())).equals(trigger)) {
+            if (mime.equals("pdf")){
+                mime = "download";
+            }
+
+            String link = book.getLink();
+            String name = book.getBookName() + '.' + mime;
+
+            setButtonsRow(addingRowToKeyboard());
+            sendMessage(TextData.STARTING_DOWNLOADING_PROMPT);
+
+            sendFile(name, setFileInputStream(link, mime));
+            levelOfProgram = 0;
+        }
+    }
+    /*_______________________________Massage Settings____________________________________________*/
+
+    private void sendMessage(String mainMessageForUser){
         messageSettings.enableMarkdown(false);
         messageSettings.setChatId(message.getChatId().toString());
         try {
             execute(messageSettings.setText(mainMessageForUser));
         } catch (TelegramApiException e){
             e.printStackTrace();
-            return false;
-        } return true;
+        }
     }
 
-    private Book getMainDataBook(List<BookOptions> list, int position){
+    /*__________________________Sending of File_________________________________________________*/
+
+    private void sendFile(String nameOfFile, InputStream document){
+        SendDocument sendDocument = new SendDocument();
+        sendDocument.setChatId(message.getChatId());
+        try {
+            execute(sendDocument.setDocument(nameOfFile, document));
+            sendMessage(TextData.FINISH_PROMPT);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+            sendMessage(TextData.ERROR_DOWNLOADING);
+        }
+    }
+
+    private InputStream setFileInputStream(String link, String mime){
+        HttpURLConnection connection;
+        try {
+            URL url = new URL(link+"/" + mime);
+            connection = (HttpURLConnection) url.openConnection();
+            return connection.getInputStream();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } return null;
+    }
+
+
+    /*___________________________________________________________________________*/
+    private Book setBookData(List<Library> list, int position){
         FormatParser formatParser = new FormatParser(list.get(position).getLink());
         List<String> formatList = formatParser.getFormats();
 
         String name = list.get(position).getName();
         String author = list.get(position).getAuthor();
         String link = TextData.MAIN_LINK + list.get(position).getLink();
-
-        setFormatsToKeyboard(formatList);
-
-        Book book = new Book(formatList, name, author, link);
-
-        isGotPositionOfBook = false;
-        return book;
+        return new Book(formatList, name, author, link);
     }
 
-    private void setFormatsToKeyboard(List<String> formatList){
-        try {
-            sendMessage(TextData.FORMAT_CHOSE_PROMPT);
-            execute(messageSettings.setReplyMarkup(setButtonsRow(addingOfNewRowToKeyboard(formatList))));
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
-
-
-    /*___________________________________________________________________________*/
+    /*_________________________Keyboard Settings__________________________________________________*/
 
     private static ReplyKeyboardMarkup setButtonsRow(List<KeyboardRow> keyboardRow){
         ReplyKeyboardMarkup replyKeyboardMarkup = new ReplyKeyboardMarkup();
@@ -141,27 +189,41 @@ public class MyLibraryBot extends TelegramLongPollingBot {
         return replyKeyboardMarkup;
     }
 
-    private static List<KeyboardRow> addingOfNewRowToKeyboard(String button){
+    private static List<KeyboardRow> addingRowToKeyboard(){
         KeyboardRow keyboardRow = new KeyboardRow();
-        keyboardRow.add( new KeyboardButton(button));
+        keyboardRow.add( new KeyboardButton(TextData.CANCEL_OF_SEARCHING_PROMPT));
         List<KeyboardRow> keyboardRowList = new ArrayList<>();
         keyboardRowList.add(keyboardRow);
         return keyboardRowList;
     }
 
-    private static List<KeyboardRow> addingOfNewRowToKeyboard(List<String> conditions){
+    private static List<KeyboardRow> addingRowToKeyboard(List<String> formats){
         List<KeyboardRow> keyboardRowList = new ArrayList<>();
 
-        KeyboardRow mainRow = new KeyboardRow();
-        mainRow.add(new KeyboardButton(TextData.CANCEL_OF_SEARCHING_PROMPT));
-        keyboardRowList.add(mainRow);
+        KeyboardRow keyboardRow1 = new KeyboardRow();
+        keyboardRow1.add(new KeyboardButton(TextData.CANCEL_OF_SEARCHING_PROMPT));
+        keyboardRowList.add(keyboardRow1);
 
-        KeyboardRow keyboardRow = new KeyboardRow();
-        for (String button : conditions){
-            keyboardRow.add(button);
+        KeyboardRow keyboardRow2 = new KeyboardRow();
+        for (String format : formats){
+            keyboardRow2.add(format);
         }
-        keyboardRowList.add(keyboardRow);
+        keyboardRowList.add(keyboardRow2);
         return keyboardRowList;
     }
+
     /*___________________________________________________________________________*/
+
+    private String catchMimeTypeFromUser(String massageFromUser, List<String> mimeList){
+        for (String s : mimeList){
+            if (s.equals(massageFromUser)){
+                return s;
+            }
+        } return TextData.ERROR_FORMAT_PROMPT;
+    }
+
+    public static boolean isNumeric(String strNum) {
+        return strNum.matches("-?\\d+(\\.\\d+)?");
+    }
 }
+

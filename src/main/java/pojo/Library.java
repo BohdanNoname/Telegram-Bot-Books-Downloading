@@ -1,12 +1,12 @@
 package pojo;
 
-public class BookOptions {
+public class Library {
     private String position;
     private String author;
     private String name;
     private String link;
 
-    public BookOptions(String position, String author, String name, String link) {
+    public Library(String position, String author, String name, String link) {
         this.position = position;
         this.author = author;
         this.name = name;
@@ -28,7 +28,7 @@ public class BookOptions {
     @Override
     public String toString() {
         return '\n' +  position + ". " +
-                "Автор - " + author + ", " +
-                "Название книги - " + '"' + name + '"';
+                "Название книги - " + '"' + name + '"' +
+                "Автор - " + author;
     }
 }
