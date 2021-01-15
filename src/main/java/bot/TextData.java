@@ -1,12 +1,12 @@
 package bot;
 
 public final class TextData {
-    public static final String TOKEN_TELEGRAM_BOT = "1507363931:AAHFXhr8hCzBs-OB5PyXJer6pntWB6Vaevk";
+    public static final String TOKEN_TELEGRAM_BOT = "***";
     public static final String USERNAME_TELEGRAM_BOT = "nedashkivskyi_library_bot";
 
-    public static final String HOST_FTP_SERVER = "79.143.187.176";
-    public static final String USERNAME_FTP_SERVER = "user2234";
-    public static final String PASSWORD_FTP_SERVER = "1xra3AQFfj6B";
+    public static final String HOST_FTP_SERVER = "***";
+    public static final String USERNAME_FTP_SERVER = "***";
+    public static final String PASSWORD_FTP_SERVER = "***";
 
     public static final String MAIN_START = "/start";
     public static final String WELCOMING_OF_NEW_USER_PROMPT =   "Я постараюсь помочь вам удобно скачивать книги прямо на ваш девайс. " +
