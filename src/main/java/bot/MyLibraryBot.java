@@ -97,14 +97,17 @@ public class MyLibraryBot extends TelegramLongPollingBot {
     }
 
     private void settingPositionOfBookByUser(String position){
-        if (library.size() != 0 && isNumeric(position) && levelOfProgram == 1){
+        if (library.size() != 0 && isNumeric(position)
+                && Integer.parseInt(position) <= library.size() && levelOfProgram == 1){
             book = setBookData(library, (Integer.parseInt(position) - 1));
             messageSettings.setReplyMarkup(setButtonsRow(addingRowToKeyboard(book.getFileFormat())));
             sendMessage(TextData.FORMAT_CHOSE_PROMPT);
             levelOfProgram = 2;
-        } else if (library.size() != 0 && levelOfProgram == 1){
+        }
+        else if (library.size() != 0 && !isNumeric(position) && levelOfProgram == 1){
             sendMessage(TextData.NUMBER_PROMPT);
-        } else {
+        }
+        else if(Integer.parseInt(position) > library.size() && isNumeric(position) && library.size() != 0 && levelOfProgram == 1){
             sendMessage(TextData.ERROR_INPUTTING_POSITION_PROMPT);
         }
     }
@@ -122,7 +125,7 @@ public class MyLibraryBot extends TelegramLongPollingBot {
             setButtonsRow(addingRowToKeyboard());
             sendMessage(TextData.STARTING_DOWNLOADING_PROMPT);
 
-            sendFile(name, setFileInputStream(link, mime));
+            sendFile(name, setFileInputStream(link, mime));/*добавить в новый поток */
             levelOfProgram = 0;
         }
     }
