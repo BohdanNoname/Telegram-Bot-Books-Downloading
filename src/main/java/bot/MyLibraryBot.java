@@ -104,10 +104,12 @@ public class MyLibraryBot extends TelegramLongPollingBot {
             sendMessage(TextData.FORMAT_CHOSE_PROMPT);
             levelOfProgram = 2;
         }
-        else if (library.size() != 0 && !isNumeric(position) && levelOfProgram == 1){
+        else if (library.size() != 0 && !isNumeric(position)
+                && levelOfProgram == 1){
             sendMessage(TextData.NUMBER_PROMPT);
         }
-        else if(Integer.parseInt(position) > library.size() && isNumeric(position) && library.size() != 0 && levelOfProgram == 1){
+        else if(library.size() != 0 && isNumeric(position)
+                && Integer.parseInt(position) > library.size() && levelOfProgram == 1){
             sendMessage(TextData.ERROR_INPUTTING_POSITION_PROMPT);
         }
     }
@@ -125,7 +127,9 @@ public class MyLibraryBot extends TelegramLongPollingBot {
             setButtonsRow(addingRowToKeyboard());
             sendMessage(TextData.STARTING_DOWNLOADING_PROMPT);
 
-            sendFile(name, setFileInputStream(link, mime));/*добавить в новый поток */
+            MyRunnableSendFile myRunnable = new MyRunnableSendFile(name, link, mime);
+            myRunnable.run();
+
             levelOfProgram = 0;
         }
     }
@@ -143,28 +147,7 @@ public class MyLibraryBot extends TelegramLongPollingBot {
 
     /*__________________________Sending of File_________________________________________________*/
 
-    private void sendFile(String nameOfFile, InputStream document){
-        SendDocument sendDocument = new SendDocument();
-        sendDocument.setChatId(message.getChatId());
-        try {
-            execute(sendDocument.setDocument(nameOfFile, document));
-            sendMessage(TextData.FINISH_PROMPT);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-            sendMessage(TextData.ERROR_DOWNLOADING);
-        }
-    }
 
-    private InputStream setFileInputStream(String link, String mime){
-        HttpURLConnection connection;
-        try {
-            URL url = new URL(link+"/" + mime);
-            connection = (HttpURLConnection) url.openConnection();
-            return connection.getInputStream();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } return null;
-    }
 
 
     /*___________________________________________________________________________*/
@@ -225,8 +208,51 @@ public class MyLibraryBot extends TelegramLongPollingBot {
         } return TextData.ERROR_FORMAT_PROMPT;
     }
 
-    public static boolean isNumeric(String strNum) {
+    private static boolean isNumeric(String strNum) {
         return strNum.matches("-?\\d+(\\.\\d+)?");
+    }
+
+    /*_______________________________Separate Stream____________________________________________*/
+    protected class MyRunnableSendFile implements Runnable{
+
+        private final String name;
+        private final String link;
+        private final String mime;
+
+        public MyRunnableSendFile(String name, String link, String mime) {
+            this.name = name;
+            this.link = link;
+            this.mime = mime;
+        }
+
+        @Override
+        public void run() {
+            sendFile(name, link, mime);
+        }
+
+        private void sendFile(String nameOfFile, String link, String mime){
+            SendDocument sendDocument = new SendDocument();
+            sendDocument.setChatId(message.getChatId());
+            try {
+                execute(sendDocument.setDocument(nameOfFile, setFileInputStream(link, mime)));
+                sendMessage(TextData.FINISH_PROMPT);
+            } catch (TelegramApiException e) {
+                e.printStackTrace();
+                sendMessage(TextData.ERROR_DOWNLOADING);
+            }
+        }
+
+        private InputStream setFileInputStream(String link, String mime){
+            HttpURLConnection connection;
+            try {
+                URL url = new URL(link+"/" + mime);
+                connection = (HttpURLConnection) url.openConnection();
+                return connection.getInputStream();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } return null;
+        }
+
     }
 }
 
